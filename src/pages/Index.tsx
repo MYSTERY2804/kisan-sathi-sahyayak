@@ -1,14 +1,15 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { toast } from '@/components/ui/use-toast';
-import { Send, Sprout, Tractor, Leaf, HelpCircle } from 'lucide-react';
+import { Send, LogOut, HelpCircle } from 'lucide-react';
 import ChatMessage from '@/components/ChatMessage';
 import SourcesPanel from '@/components/SourcesPanel';
 import ThinkingAnimation from '@/components/ThinkingAnimation';
 import Logo from '@/components/Logo';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/context/AuthContext';
 
 interface Message {
   content: string;
@@ -34,6 +35,7 @@ const Index = () => {
   ]);
   const [sources, setSources] = useState<Source[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { user, signOut } = useAuth();
   
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -42,6 +44,57 @@ const Index = () => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Fetch chat history when component mounts
+  useEffect(() => {
+    const fetchChatHistory = async () => {
+      if (!user) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from('chat_history')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: true });
+          
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+          const history: Message[] = [];
+          
+          // Keep the welcome message
+          history.push(messages[0]);
+          
+          data.forEach(chat => {
+            // Add user question
+            history.push({
+              content: chat.question,
+              isUser: true,
+              timestamp: new Date(chat.created_at).toLocaleTimeString()
+            });
+            
+            // Add AI response
+            history.push({
+              content: chat.answer,
+              isUser: false,
+              timestamp: new Date(chat.created_at).toLocaleTimeString()
+            });
+          });
+          
+          setMessages(history);
+        }
+      } catch (error) {
+        console.error('Error fetching chat history:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load chat history",
+          variant: "destructive",
+        });
+      }
+    };
+    
+    fetchChatHistory();
+  }, [user]);
 
   const formatTimestamp = () => {
     return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -86,6 +139,20 @@ const Index = () => {
       setMessages(prev => [...prev, botMessage]);
       setSources(data.sources || []);
       
+      // Save to Supabase
+      if (user) {
+        const { error } = await supabase.from('chat_history').insert({
+          user_id: user.id,
+          question: input,
+          answer: data.answer,
+          sources: data.sources
+        });
+        
+        if (error) {
+          console.error('Error saving chat:', error);
+        }
+      }
+      
     } catch (error) {
       console.error('Error:', error);
       toast({
@@ -104,6 +171,19 @@ const Index = () => {
     }
   };
 
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+    } catch (error) {
+      console.error('Error signing out:', error);
+      toast({
+        title: "Error",
+        description: "Failed to sign out. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const suggestedQuestions = [
     "What government schemes are available for organic farming?",
     "How to identify and treat rice blast disease?",
@@ -118,24 +198,40 @@ const Index = () => {
         <div className="max-w-6xl mx-auto flex justify-between items-center">
           <Logo />
           
-          <a 
-            href="#"
-            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-leaf-700 transition-colors"
-            onClick={(e) => {
-              e.preventDefault();
-              toast({
-                title: "About Krish Mitra",
-                description: "Agricultural assistant powered by LLaMA 3 and SearxNG, designed to help farmers with expert knowledge.",
-              });
-            }}
-          >
-            <HelpCircle size={16} />
-            <span>About</span>
-          </a>
+          <div className="flex items-center gap-4">
+            <div className="text-sm text-muted-foreground">
+              {user?.email}
+            </div>
+            
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleSignOut}
+              className="flex items-center gap-1"
+            >
+              <LogOut size={16} />
+              <span>Sign Out</span>
+            </Button>
+            
+            <a 
+              href="#"
+              className="flex items-center gap-1 text-sm text-muted-foreground hover:text-leaf-700 transition-colors"
+              onClick={(e) => {
+                e.preventDefault();
+                toast({
+                  title: "About Krish Mitra",
+                  description: "Agricultural assistant powered by LLaMA 3 and SearxNG, designed to help farmers with expert knowledge.",
+                });
+              }}
+            >
+              <HelpCircle size={16} />
+              <span>About</span>
+            </a>
+          </div>
         </div>
       </header>
       
-      <main className="flex-1 flex flex-col md:flex-row max-w-6xl w-full mx-auto p-4 gap-4">
+      <main className="flex-1 flex flex-col max-w-4xl w-full mx-auto p-4 gap-4">
         <div className="flex-1 flex flex-col max-h-[calc(100vh-8rem)]">
           {/* Chat container */}
           <Card className="flex-1 flex flex-col p-4 overflow-hidden border-leaf-100 bg-white/80 backdrop-blur-sm mb-4">
@@ -174,49 +270,10 @@ const Index = () => {
           </form>
         </div>
         
-        <div className="md:w-[340px] space-y-4">
-          {/* Sources panel */}
+        {/* Sources panel - Now below the chat instead of on right */}
+        {sources.length > 0 && (
           <SourcesPanel sources={sources} />
-          
-          {/* Suggested questions */}
-          <Card className="border-leaf-100 bg-white/80 backdrop-blur-sm">
-            <div className="p-4 pb-2">
-              <h3 className="font-medium text-leaf-800 flex items-center gap-1.5">
-                <Leaf size={16} className="text-leaf-600" />
-                Suggested Questions
-              </h3>
-            </div>
-            <div className="p-2">
-              {suggestedQuestions.map((question, i) => (
-                <Button
-                  key={i}
-                  variant="ghost"
-                  className="w-full justify-start text-left text-sm py-2 px-3 h-auto mb-1 hover:bg-leaf-50 font-normal"
-                  onClick={() => {
-                    setInput(question);
-                  }}
-                >
-                  {question}
-                </Button>
-              ))}
-            </div>
-          </Card>
-          
-          {/* Agricultural tips */}
-          <Card className="border-leaf-100 bg-white/80 backdrop-blur-sm p-4">
-            <div className="flex gap-2 items-start">
-              <div className="bg-leaf-50 p-1.5 rounded-full">
-                <Tractor size={20} className="text-leaf-600" />
-              </div>
-              <div>
-                <h3 className="font-medium text-leaf-800">Farming Tip</h3>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Did you know? Intercropping legumes with cereals can improve soil nitrogen levels and reduce the need for chemical fertilizers.
-                </p>
-              </div>
-            </div>
-          </Card>
-        </div>
+        )}
       </main>
       
       <footer className="text-center py-4 text-sm text-muted-foreground border-t border-leaf-100 bg-white/50">
