@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -55,12 +54,21 @@ const Index = () => {
     setIsLoading(true);
     
     try {
+      // Prepare conversation history (excluding system messages)
+      const conversationHistory = currentChat.messages
+        .filter(msg => !msg.content.includes("Namaste! 🙏 I'm Krish Mitra")) // Filter out intro message
+        .map(msg => [msg.content, msg.isUser]);
+
       const response = await fetch('http://127.0.0.1:8000/ask', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ question: input }),
+        body: JSON.stringify({ 
+          question: input,
+          conversation_id: currentChat.id,
+          conversation_history: conversationHistory
+        }),
       });
       
       if (!response.ok) {

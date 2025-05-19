@@ -12,6 +12,7 @@ interface ChatContextProps {
   isLoadingChats: boolean;
   createNewChat: () => void;
   selectChat: (chatId: string) => void;
+  deleteChat: (chatId: string) => void;
   addMessageToChat: (message: Message) => Promise<void>;
   setCurrentChatMessages: (messages: Message[]) => void;
 }
@@ -22,6 +23,7 @@ const ChatContext = createContext<ChatContextProps>({
   isLoadingChats: true,
   createNewChat: () => {},
   selectChat: () => {},
+  deleteChat: () => {},
   addMessageToChat: async () => {},
   setCurrentChatMessages: () => {},
 });
@@ -167,14 +169,58 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const deleteChat = async (chatId: string) => {
+    if (!user) return;
+    
+    try {
+      // Delete from database
+      const { error } = await supabase
+        .from('chat_history')
+        .delete()
+        .eq('conversation_id', chatId);
+      
+      if (error) throw error;
+      
+      // Update local state
+      setChats(prevChats => prevChats.filter(chat => chat.id !== chatId));
+      
+      // If the deleted chat was the current chat, set the current chat to the first available chat
+      // or create a new one if no chats remain
+      if (currentChat?.id === chatId) {
+        const remainingChats = chats.filter(chat => chat.id !== chatId);
+        if (remainingChats.length > 0) {
+          setCurrentChat(remainingChats[0]);
+        } else {
+          createNewChat();
+        }
+      }
+      
+      toast({
+        title: "Success",
+        description: "Chat deleted successfully",
+      });
+    } catch (error) {
+      console.error('Error deleting chat:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete chat",
+        variant: "destructive",
+      });
+    }
+  };
+
   const addMessageToChat = async (message: Message) => {
     if (!currentChat || !user) return;
     
+    // Create a new array with all previous messages plus the new one
+    const updatedMessages = [...currentChat.messages, message];
+    
     const updatedChat = {
       ...currentChat,
-      messages: [...currentChat.messages, message]
+      messages: updatedMessages
     };
     
+    // Update current chat with all messages
     setCurrentChat(updatedChat);
     
     // Update chats list
@@ -188,7 +234,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!message.isUser) {
       try {
         // Find the most recent user message
-        const userMessages = currentChat.messages.filter(m => m.isUser);
+        const userMessages = updatedMessages.filter(m => m.isUser);
         if (userMessages.length > 0) {
           const userQuestion = userMessages[userMessages.length - 1].content;
           
@@ -238,6 +284,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isLoadingChats,
         createNewChat,
         selectChat,
+        deleteChat,
         addMessageToChat,
         setCurrentChatMessages
       }}

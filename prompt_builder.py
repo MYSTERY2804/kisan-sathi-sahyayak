@@ -9,11 +9,19 @@ Context:
 """
     
     if conversation_history and len(conversation_history) > 0:
-        history = "\n".join([f"{'User' if is_user else 'Assistant'}: {message}" for message, is_user in conversation_history])
+        # Format conversation history as alternating User/Assistant messages
+        history_text = ""
+        for i, (message, is_user) in enumerate(conversation_history):
+            role = "User" if is_user else "Assistant"
+            # Skip the first message if it's the initial greeting
+            if i == 0 and role == "Assistant" and "Namaste! 🙏 I'm Krish Mitra" in message:
+                continue
+            history_text += f"{role}: {message}\n\n"
+            
         prompt = f"""{context_prompt}
 
-Conversation history:
-{history}
+Previous conversation:
+{history_text}
 
 User: {query}
 Assistant:"""
