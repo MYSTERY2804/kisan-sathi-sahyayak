@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -49,12 +50,13 @@ const Index = () => {
       timestamp: formatTimestamp()
     };
     
+    // Add user message to chat immediately
     await addMessageToChat(userMessage);
     setInput('');
     setIsLoading(true);
     
     try {
-      // Prepare conversation history (excluding system messages)
+      // Prepare conversation history for API
       const conversationHistory = currentChat.messages
         .filter(msg => !msg.content.includes("Namaste! 🙏 I'm Krish Mitra")) // Filter out intro message
         .map(msg => [msg.content, msg.isUser]);

@@ -11,12 +11,16 @@ Context:
     if conversation_history and len(conversation_history) > 0:
         # Format conversation history as alternating User/Assistant messages
         history_text = ""
-        for i, (message, is_user) in enumerate(conversation_history):
+        for i, message in enumerate(conversation_history):
+            content = message[0]
+            is_user = message[1]
             role = "User" if is_user else "Assistant"
+            
             # Skip the first message if it's the initial greeting
-            if i == 0 and role == "Assistant" and "Namaste! 🙏 I'm Krish Mitra" in message:
+            if i == 0 and role == "Assistant" and "Namaste! 🙏 I'm Krish Mitra" in content:
                 continue
-            history_text += f"{role}: {message}\n\n"
+                
+            history_text += f"{role}: {content}\n\n"
             
         prompt = f"""{context_prompt}
 
