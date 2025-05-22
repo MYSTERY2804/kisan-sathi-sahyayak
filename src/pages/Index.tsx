@@ -50,7 +50,7 @@ const Index = () => {
       timestamp: formatTimestamp()
     };
     
-    // Add user message to chat immediately
+    // Add user message to chat immediately and wait for it to complete
     await addMessageToChat(userMessage);
     setInput('');
     setIsLoading(true);
